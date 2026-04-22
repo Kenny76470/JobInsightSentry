@@ -19,9 +19,10 @@ public class ContentFilter {
                 return true;
             }
         }
+        //System.out.println("DEBUG: 檢查內容長度 = " + job.content().length() + " 內容是: " + job.content());
 
         // 2. 檢查內容是否過短 (通常是沒寫清楚的缺)
-        if (job.content().length() < 50) {
+        if (job.content().length() < 5) {
             System.out.println("🚫 過濾掉內容過短的職缺：" + job.jobTitle());
             return true;
         }

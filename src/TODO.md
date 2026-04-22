@@ -8,12 +8,12 @@
 
 #### 第一階段：穩固地基 (Java SE 最終修正) —— **今天目標**
 * [x] **資安修補**：在根目錄建立 `.env`，將 API Key 從 `GeminiService` 拔掉，改用 `dotenv` 讀取。
-* [ ] **Git 存檔**：
-    * [ ] 撰寫完整的 `.gitignore`（排除 `.idea`, `target`, `.env`, `JobExports`）。
-    * [ ] 執行 `git init` 並完成第一次 Commit：`feat: baseline java-se version`。
-* [ ] **測試補全**：
-    * [ ] 跑通 `UrlValidatorTest` 的所有案例（包含你剛找的 104 App 分享網址）。
-    * [ ] 撰寫 `ContentFilterTest`，驗證黑名單 Regex 是否能擋掉「博弈、保險」。
+* [x] **Git 存檔**：
+    * [x] 撰寫完整的 `.gitignore`（排除 `.idea`, `target`, `.env`, `JobExports`）。
+    * [x] 執行 `git init` 並完成第一次 Commit：`feat: baseline java-se version`。
+* [x] **測試補全**：
+    * [x] 跑通 `UrlValidatorTest` 的所有案例（包含你剛找的 104 App 分享網址）。
+    * [x] 撰寫 `ContentFilterTest`，驗證黑名單 Regex 是否能擋掉「博弈、保險」。
 
 #### 第二階段：架構變身 (Spring Boot 遷移) —— **核心改版**
 * [ ] **環境換血**：修改 `pom.xml`，加入 `spring-boot-starter-parent` 與 `web-starter`。
