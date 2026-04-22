@@ -1,46 +1,29 @@
-好的，這是一個非常專業的決策。在工程領域，我們稱之為 **「專案管理與技術債清單」**。
+根據你目前的專案進度與程式碼結構，身為資深開發者，我建議你按照以下優先順序完成 **TODO List**。這份清單分為「功能修補」、「系統健壯性」與「進階優化」三個階段：
 
-為了讓你從目前的 Java SE 順利過渡到 Spring Boot，並且補齊資安與測試的漏洞，我幫你列了一份 **「JobInsightSentry 升級藍圖」**。你可以直接把這段存進你的 `TODO.md` 檔案裡。
+### 🏁 第一階段：功能修補 (把斷掉的鏈結補起來)
+目前程式碼中有些工具類寫好了但沒用到，或是關鍵設定還沒處理。
 
----
+* [x] **API Key 安全化**：將 `GeminiService` 中的 `apiKey` 移至 `.env` 檔案，並使用你已引入的 `dotenv-java` 讀取，避免 API Key 意外上傳到 GitHub。
+* [x] **補齊存檔邏輯**：在 `JobController` 的 `scanJob` 方法末尾，呼叫 `FileUtil.saveJob()` 與 `FileUtil.saveAnalysis()`，確保抓取的結果會存入 `JobExports` 資料夾。
+* [x] **URL 預處理**：在 `JobController` 接收到 `url` 參數時，先過濾 `UrlValidator.cleanUrl(url)`，防止帶有追蹤參數的網址導致爬蟲行為異常。
+* [x] **處理 JSON 轉義問題**：將 `GeminiService` 手動拼接 JSON 的方式改用 `Gson` 轉換，避免職缺描述內容包含引號時導致 API 請求失敗。
 
-### 📋 JobInsightSentry 開發待辦清單 (TODO List)
+### 🛡️ 第二階段：系統健壯性 (防止程式崩潰)
+爬蟲與 AI 調用是最容易出錯的地方，需要加強異常處理。
 
-#### 第一階段：穩固地基 (Java SE 最終修正) —— **今天目標**
-* [x] **資安修補**：在根目錄建立 `.env`，將 API Key 從 `GeminiService` 拔掉，改用 `dotenv` 讀取。
-* [x] **Git 存檔**：
-    * [x] 撰寫完整的 `.gitignore`（排除 `.idea`, `target`, `.env`, `JobExports`）。
-    * [x] 執行 `git init` 並完成第一次 Commit：`feat: baseline java-se version`。
-* [x] **測試補全**：
-    * [x] 跑通 `UrlValidatorTest` 的所有案例（包含你剛找的 104 App 分享網址）。
-    * [x] 撰寫 `ContentFilterTest`，驗證黑名單 Regex 是否能擋掉「博弈、保險」。
+* [ ] **爬蟲超時與重試機制**：104 有時會擋爬蟲或讀取過久，在 `CrawlerService` 增加 `page.waitForLoadState()` 或適當的重試邏輯。
+* [ ] **空值檢查 (Null Safety)**：在 `ContentFilter` 與 `FileUtil` 中增加對 `JobDetail` 欄位的空值檢查，防止 `NullPointerException`。
+* [ ] **自定義異常處理**：建立一個 `@RestControllerAdvice` 來統一處理 `scanJob` 拋出的錯誤，不要直接把 `StackTrace` 回傳給前端。
+* [ ] **Headless 模式切換**：在 `BrowserConfig` 增加一個配置項，讓你能在開發時看瀏覽器動（`headless: false`），部署到伺服器時自動關閉（`headless: true`）。
 
-#### 第二階段：架構變身 (Spring Boot 遷移) —— **核心改版**
-* [ ] **環境換血**：修改 `pom.xml`，加入 `spring-boot-starter-parent` 與 `web-starter`。
-* [ ] **建立啟動類**：建立 `JobHunterApplication.java` 並加上 `@SpringBootApplication`。
-* [ ] **元件化 (Bean)**：
-    * [ ] 將 `GeminiService` 加上 `@Service`。
-    * [ ] 將 `CrawlerService` 改為由 Spring 管理。
-* [ ] **入口開發 (Controller)**：建立 `JobController`，提供 `POST /api/analyze` 介面，取代 CLI 輸入。
+### 🚀 第三階段：進階優化 (資深工程師的追求)
+讓專案從「可以用」變成「好用」且「專業」。
 
-#### 第三階段：產品優化 (專業工程化) —— **面試加分項**
-* [ ] **異常處理 (Global Exception Handling)**：建立 `@ControllerAdvice`，確保爬蟲失敗時回傳漂亮的 JSON 而不是一堆紅字。
-* [ ] **日誌系統 (Logging)**：把 `System.out.println` 全部換成 `SLF4J + Logback`。
-* [ ] **資料持久化**：
-    * [ ] 引入 **H2 Database**（測試用）或 **MySQL**。
-    * [ ] 使用 Spring Data JPA 將分析結果存入資料庫，取代 `.txt` 存檔。
+* [ ] **非同步處理 (Async)**：抓取與分析可能耗時超過 30 秒，考慮將 API 改為非同步，先回傳「受理中」，處理完後透過 WebSocket 通知或讓使用者查詢狀態。
+* [ ] **爬蟲 CSS Selector 抽離**：將 104 的網頁選擇器（如 `h1`, `.company-info__name`）移至 `application.properties`，若網頁改版只需改設定檔，不需重新編譯。
+* [ ] **優化 AI Prompt**：調整 `GeminiService` 的 Prompt，要求 AI 以固定格式（如 Markdown 表格）回傳，方便閱讀與後續資料提取。
+* [ ] **多平台支援預留**：重構 `CrawlerService` 介面，讓未來除了 104 以外，也能輕鬆擴充支援 CakeResume 或 LinkedIn。
 
 ---
 
-### 💡 建議的操作流程
-
-你可以先把這份清單貼到 IntelliJ 的一個新檔案 `TODO.md`。每完成一項，就在 `[ ]` 裡填入 `x` 變成 `[x]`。
-
-**現在，我們來處理「第一階段」的第一個魔王：Git。**
-
-1.  你在專案根目錄（跟 `src` 同一層）建立一個 `TODO.md` 了嗎？
-2.  建立完後，我教你寫那個專業的 `.gitignore` 檔案，這才是目前最迫切的「資安防護」，免得你一上傳 GitHub 就洩漏金鑰。
-
-
-
-**如果你準備好了，跟我說一聲，我們來寫 `.gitignore` 並執行 `git init`！**
+**你可以先把這份清單貼進專案根目錄的 `TODO.md`，完成一項打一個勾！** 有哪一部分需要我幫你寫範例程式碼嗎？

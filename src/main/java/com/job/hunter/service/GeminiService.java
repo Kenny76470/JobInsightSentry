@@ -1,65 +1,56 @@
 package com.job.hunter.service;
 
-import com.job.hunter.model.JobDetail;
+import com.google.gson.Gson;
+import io.github.cdimascio.dotenv.Dotenv;
 import okhttp3.*;
-import com.google.gson.*;
+import org.springframework.stereotype.Service;
+
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-
+@Service
 public class GeminiService {
-    // 1. 把你那個 AIza 開頭的 Key 貼在這裡
-    private static final String API_KEY = io.github.cdimascio.dotenv.Dotenv.load().get("GEMINI_KEY");;
-    // 使用 Gemini 3.1 Flash Lite Preview
-    private static final String API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=" + API_KEY;
-    public static String analyze(JobDetail job) {
-        OkHttpClient client = new OkHttpClient();
 
-        // 構造 Prompt
-        String prompt = String.format("""
-            你是一位資深技術獵頭。請分析以下職缺資訊：
-            公司：%s
-            職稱：%s
-            內容：%s
-            條件：%s
-            
-            請給我三點分析：
-            1. 這個職缺的核心技術門檻。
-            2. 建議的投遞策略。
-            3. 這個職缺的市場競爭力（1-10分）。
-            """, job.companyName(), job.jobTitle(), job.content(), job.condition());
+    private final OkHttpClient client;
+    private final String apiKey;
+    private final Gson gson = new Gson();
 
-        // 構造 JSON
-        JsonObject json = new JsonObject();
-        JsonArray contents = new JsonArray();
-        JsonObject part = new JsonObject();
-        JsonArray parts = new JsonArray();
-        JsonObject textPart = new JsonObject();
-        textPart.addProperty("text", prompt);
-        parts.add(textPart);
-        part.add("parts", parts);
-        contents.add(part);
-        json.add("contents", contents);
+    // 這裡改為 Spring 注入，或手動建立
+    public GeminiService(OkHttpClient client) {
+        Dotenv dotenv = Dotenv.load();
+        this.apiKey = dotenv.get("GEMINI_API_KEY");
+        this.client = client;
+    }
 
-        RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json; charset=utf-8"));
-        Request request = new Request.Builder().url(API_URL).post(body).build();
+    public String analyze(String text) throws IOException {
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey;
+
+        // 3. 使用 Map 與 Gson 構建 JSON (結構安全，自動處理轉義)
+        Map<String, Object> requestMap = Map.of(
+                "contents", List.of(
+                        Map.of("parts", List.of(
+                                Map.of("text", text + " (請根據這份職缺內容，條列式分析其優缺點、建議避雷點與面試準備重點)")
+                        ))
+                )
+        );
+        String json = gson.toJson(requestMap);
+
+        RequestBody body = RequestBody.create(
+                json, MediaType.parse("application/json; charset=utf-8"));
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
 
         try (Response response = client.newCall(request).execute()) {
-            if (response.isSuccessful() && response.body() != null) {
-                String responseBody = response.body().string();
-                JsonObject resJson = JsonParser.parseString(responseBody).getAsJsonObject();
-                return resJson.getAsJsonArray("candidates")
-                        .get(0).getAsJsonObject()
-                        .getAsJsonObject("content")
-                        .getAsJsonArray("parts")
-                        .get(0).getAsJsonObject()
-                        .get("text").getAsString();
-            } else {
-                // 這裡很重要：如果沒成功，看它是噴什麼錯誤碼
-                String errorMsg = response.body() != null ? response.body().string() : "Unknown Error";
-                return "❌ AI 分析失敗，狀態碼：" + response.code() + "\n錯誤詳情：" + errorMsg;
+            if (!response.isSuccessful()) {
+                return "❌ AI 分析失敗 (Status: " + response.code() + ")";
             }
-        } catch (IOException e) {
-            return "❌ 網路連線失敗：" + e.getMessage();
+            // 這裡可以考慮進一步解析 JSON 只回傳 text 部分，但目前先回傳全部字串
+            return response.body() != null ? response.body().string() : "無回應內容";
         }
     }
 }
