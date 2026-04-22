@@ -15,53 +15,63 @@ public class CrawlerService {
 
     public JobDetail scrape(String url) {
         try (Page page = browser.newPage()) {
-            System.out.println("【執行中】正在開啟分頁並前往：" + url);
+            System.out.println("【執行中】前往目標：" + url);
 
             // 1. 前往網址並等待
             page.navigate(url, new Page.NavigateOptions()
                     .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                     .setTimeout(60000));
 
-            // 2. 等待關鍵元素出現 (確保不是空網頁)
+            // 2. 等待標題出現 (確認網頁已加載)
             page.waitForSelector("h1", new Page.WaitForSelectorOptions().setTimeout(10000));
 
-            // 3. 開始抓取 (使用更強健的組合選擇器)
-            String jobTitle = page.locator("h1, .job-header__title").first().innerText().trim();
+            // --- 開始精確抓取 (基於你提供的 HTML 結構) ---
 
-            // 抓取公司名稱 (排除掉「我有興趣」之類的按鈕文字)
-            String companyName = page.locator("a[href*='company'], .company-info__nameStr").first().innerText().trim();
+            // 職稱：抓 h1
+            String jobTitle = page.locator("h1").first().innerText().trim();
 
-            // 抓取薪資 (104 的薪資通常在 .job-description-main__renderer 的第一個項目)
-            String salary = "不詳";
+            // 公司名：找具有 data-gtm-head="公司名稱" 的標籤，這比 class 穩 100 倍
+            String companyName = "未知公司";
             try {
-                salary = page.locator(".job-description-main__renderer").first().innerText().split("\n")[0];
-            } catch (Exception e) { /* 抓不到就用預設值 */ }
+                companyName = page.locator("[data-gtm-head='公司名稱']").first().innerText().trim();
+            } catch (Exception e) {
+                System.out.println("【警告】公司名抓取異常，改用備選方案");
+            }
 
-            // 抓取主內容
-            String content = page.locator(".job-description-info__text").first().innerText().trim();
-
-            // 抓取條件 (應徵條件區塊)
-            String condition = "見網頁說明";
+            // 薪資：你的 HTML 顯示它在帶有特定 class 的 p 標籤裡
+            String salary = "待遇面議";
             try {
-                condition = page.locator(".job-requirement-info").first().innerText().trim();
+                salary = page.locator("p.text-primary.font-weight-bold").first().innerText().trim();
             } catch (Exception e) { }
 
-            // 抓取福利
-            String benefit = "見網頁說明";
+            // 內容：抓 job-description__content 這個 class
+            String content = "";
             try {
-                benefit = page.locator(".job-welfare-info").first().innerText().trim();
+                content = page.locator(".job-description__content").first().innerText().trim();
+            } catch (Exception e) {
+                // 如果精確內容抓不到，就實施你的「暴力直覺」：抓取整個應用的文字
+                content = page.locator("#app").innerText().trim();
+            }
+
+            // 條件：抓 job-requirement-table 區塊
+            String condition = "請見內文";
+            try {
+                condition = page.locator(".job-requirement-table").first().innerText().trim();
             } catch (Exception e) { }
 
-            System.out.println("【成功】抓取到職缺：" + jobTitle + " @ " + companyName);
+            // 福利：如果 HTML 沒明顯區塊，就讓 AI 從 content 裡找
+            String benefit = "請見內文";
 
-            // 4. 依照 Record 定義順序回傳 (6個參數)
+            System.out.println("【成功】抓取完成：" + jobTitle + " @ " + companyName);
+
+            // 4. 回傳 Record (確保 6 個欄位)
             return new JobDetail(
-                    companyName,  // String companyName
-                    jobTitle,     // String jobTitle
-                    salary,       // String salary
-                    content,      // String content
-                    condition,    // String condition
-                    benefit       // String benefit
+                    companyName,
+                    jobTitle,
+                    salary,
+                    content,
+                    condition,
+                    benefit
             );
 
         } catch (Exception e) {
