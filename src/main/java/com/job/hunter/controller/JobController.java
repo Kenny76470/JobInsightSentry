@@ -1,71 +1,73 @@
 package com.job.hunter.controller;
 
 import com.job.hunter.model.JobDetail;
+import com.job.hunter.service.AiService; // 👈 1. 這裡要改 import 介面
 import com.job.hunter.service.CrawlerService;
-import com.job.hunter.service.GeminiService;
 import com.job.hunter.util.ContentFilter;
-import com.job.hunter.util.FileUtil;      // 👈 記得 import
-import com.job.hunter.util.UrlValidator;  // 👈 記得 import
+import com.job.hunter.util.FileUtil;
+import com.job.hunter.util.UrlValidator;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.ModelAndView;
 
-@RestController
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+@Controller
 public class JobController {
 
     private final CrawlerService crawlerService;
-    private final GeminiService geminiService;
+    private final AiService aiService; // 👈 2. 型態從 GeminiService 改為 AiService 介面
 
-    public JobController(CrawlerService crawlerService, GeminiService geminiService) {
+    // 👈 3. 建構子注入的參數也要改成 AiService
+    public JobController(CrawlerService crawlerService, AiService aiService) {
         this.crawlerService = crawlerService;
-        this.geminiService = geminiService;
+        this.aiService = aiService;
     }
 
-    @GetMapping("/api/scan")
-    public String scanJob(@RequestParam String url) {
+    @GetMapping("/")
+    public String index() {
+        return "index";
+    }
+
+    @GetMapping("/scan")
+    public ModelAndView scanJob(@RequestParam String url) {
+        ModelAndView mav = new ModelAndView("index");
+
         try {
-            // ✅ TODO: URL 預處理
-            // 先清洗網址，去除 utm 等追蹤參數，確保爬蟲拿到的是乾淨的 104 連結
             String cleanUrl = UrlValidator.cleanUrl(url);
             if (cleanUrl == null) {
-                return "❌ 網址格式錯誤：目前僅支援 104 人力銀行職缺頁面。";
+                mav.addObject("result", "❌ 網址格式錯誤：目前僅支援 104 人力銀行職缺頁面。");
+                return mav;
             }
 
-            // 1. 執行爬蟲抓取資料
             JobDetail detail = crawlerService.scrape(cleanUrl);
 
-            // 2. 基本過濾 (黑名單/內容過短)
             if (ContentFilter.isGarbage(detail)) {
-                return "🚫 偵測到關鍵字或內容異常，已自動攔截該職缺。";
+                mav.addObject("result", "🚫 偵測到關鍵字或內容異常，系統已自動攔截該職缺。");
+                return mav;
             }
 
-            // 3. 整理內容給 AI
             String prompt = String.format("公司：%s, 職稱：%s, 內容：%s",
                     detail.companyName(), detail.jobTitle(), detail.content());
 
-            // 4. 呼叫 AI 分析
-            String aiResult = geminiService.analyze(prompt);
+            // 👈 4. 這裡會自動根據 Profile 呼叫到對應的 analyze 實作
+            String aiResult = aiService.analyze(prompt);
 
-            // ✅ TODO: 補齊存檔邏輯
-            // 將原始職缺資訊與 AI 報告分別存檔，方便後續查閱
+            mav.addObject("companyName", detail.companyName());
+            mav.addObject("jobTitle", detail.jobTitle());
+            mav.addObject("result", aiResult);
+            mav.addObject("scanTime", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
             FileUtil.saveJob(detail, cleanUrl);
             FileUtil.saveAnalysis(detail, aiResult);
 
-            return String.format("""
-                    ✅ 掃描完成並已自動存檔！
-                    
-                    【職缺資訊】
-                    公司：%s
-                    職稱：%s
-                    
-                    【🤖 Gemini AI 鑑定報告】
-                    %s
-                    """, detail.companyName(), detail.jobTitle(), aiResult);
-
         } catch (Exception e) {
-            // 資深工程師碎碎念：生產環境建議用 Log 框架，這裡先用 printStackTrace 除錯
             e.printStackTrace();
-            return "❌ 系統掃描發生異常：" + e.getMessage();
+            mav.addObject("result", "❌ 系統掃描發生異常：" + e.getMessage());
         }
+
+        return mav;
     }
 }

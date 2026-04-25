@@ -1,29 +1,49 @@
-根據你目前的專案進度與程式碼結構，身為資深開發者，我建議你按照以下優先順序完成 **TODO List**。這份清單分為「功能修補」、「系統健壯性」與「進階優化」三個階段：
-
-### 🏁 第一階段：功能修補 (把斷掉的鏈結補起來)
-目前程式碼中有些工具類寫好了但沒用到，或是關鍵設定還沒處理。
-
-* [x] **API Key 安全化**：將 `GeminiService` 中的 `apiKey` 移至 `.env` 檔案，並使用你已引入的 `dotenv-java` 讀取，避免 API Key 意外上傳到 GitHub。
-* [x] **補齊存檔邏輯**：在 `JobController` 的 `scanJob` 方法末尾，呼叫 `FileUtil.saveJob()` 與 `FileUtil.saveAnalysis()`，確保抓取的結果會存入 `JobExports` 資料夾。
-* [x] **URL 預處理**：在 `JobController` 接收到 `url` 參數時，先過濾 `UrlValidator.cleanUrl(url)`，防止帶有追蹤參數的網址導致爬蟲行為異常。
-* [x] **處理 JSON 轉義問題**：將 `GeminiService` 手動拼接 JSON 的方式改用 `Gson` 轉換，避免職缺描述內容包含引號時導致 API 請求失敗。
-
-### 🛡️ 第二階段：系統健壯性 (防止程式崩潰)
-爬蟲與 AI 調用是最容易出錯的地方，需要加強異常處理。
-
-* [ ] **爬蟲超時與重試機制**：104 有時會擋爬蟲或讀取過久，在 `CrawlerService` 增加 `page.waitForLoadState()` 或適當的重試邏輯。
-* [ ] **空值檢查 (Null Safety)**：在 `ContentFilter` 與 `FileUtil` 中增加對 `JobDetail` 欄位的空值檢查，防止 `NullPointerException`。
-* [ ] **自定義異常處理**：建立一個 `@RestControllerAdvice` 來統一處理 `scanJob` 拋出的錯誤，不要直接把 `StackTrace` 回傳給前端。
-* [ ] **Headless 模式切換**：在 `BrowserConfig` 增加一個配置項，讓你能在開發時看瀏覽器動（`headless: false`），部署到伺服器時自動關閉（`headless: true`）。
-
-### 🚀 第三階段：進階優化 (資深工程師的追求)
-讓專案從「可以用」變成「好用」且「專業」。
-
-* [ ] **非同步處理 (Async)**：抓取與分析可能耗時超過 30 秒，考慮將 API 改為非同步，先回傳「受理中」，處理完後透過 WebSocket 通知或讓使用者查詢狀態。
-* [ ] **爬蟲 CSS Selector 抽離**：將 104 的網頁選擇器（如 `h1`, `.company-info__name`）移至 `application.properties`，若網頁改版只需改設定檔，不需重新編譯。
-* [ ] **優化 AI Prompt**：調整 `GeminiService` 的 Prompt，要求 AI 以固定格式（如 Markdown 表格）回傳，方便閱讀與後續資料提取。
-* [ ] **多平台支援預留**：重構 `CrawlerService` 介面，讓未來除了 104 以外，也能輕鬆擴充支援 CakeResume 或 LinkedIn。
+這是一份為你的專案量身打造的 `README_TODO.md`。你可以直接將以下內容存檔，方便你在 Git 進行版本管理時同步追蹤進度。
 
 ---
 
-**你可以先把這份清單貼進專案根目錄的 `TODO.md`，完成一項打一個勾！** 有哪一部分需要我幫你寫範例程式碼嗎？
+# 📝 JobInsightSentry 開發清單 (TODO List)
+
+> **專案狀態**：`Phase 1: 核心功能驗證已完成`
+> **當前版本**：v0.1.0-alpha
+
+---
+
+## 🟥 P0: 系統穩定性與資源管理 (優先處理)
+- [ ] **Browser 生命週期管理**：在 `BrowserConfig` 加入 `@PreDestroy`，確保伺服器關閉時 Playwright 資源完全釋放。
+- [ ] **Context 隔離機制**：重構 `CrawlerService`，為每個 `scrape` 請求建立獨立的 `BrowserContext`（解決 Session 衝突風險）。
+- [ ] **配置標準化**：將 `.env` 中的 `GEMINI_API_KEY` 整合進 Spring `application.properties`，統一管理環境變數。
+- [ ] **錯誤重試機制**：針對 104 頻繁更新導致的 `TimeoutException` 加入簡易的 Retry 邏輯。
+
+## 🟧 P1: 爬蟲效能與 AI 精準度優化
+- [ ] **資源過濾 (Ad-Block)**：設定 Playwright 路由攔截，禁止加載 `image`、`font`、`stylesheet` (選用)，提升 2x 以上爬取速度。
+- [ ] **文本精簡 (Token Saver)**：開發 `ContentCleaner` 工具類，過濾掉「我要應徵、檢舉職缺、相似職缺」等雜訊，節省 Gemini Token 消耗。
+- [ ] **JSON 解析重構**：建立 `GeminiResponse` POJO 類，取代目前手動 `get(0).getAsJsonObject()` 的寫法。
+- [ ] **Headless 模式切換**：新增配置參數，支持開發環境 (Headless: false) 與生產環境 (Headless: true) 切換。
+
+## 🟩 P2: 功能擴充與使用者體驗
+- [ ] **Git 安全檢查**：確認 `.gitignore` 已正確排除 `.env`、`target/`、`.idea/` 及 `JobExports/` 資料夾。
+- [ ] **多站點抽象化**：定義 `JobCrawler` 介面，為未來接入 **CakeResume** 與 **LinkedIn** 做準備。
+- [ ] **存檔格式多樣化**：除了 `.txt`，增加輸出 `.json` 或 `.html` 格式，方便後端處理或瀏覽器查看。
+- [ ] **URL 寬容度優化**：優化 `UrlValidator`，支援 104 手機版網址 (`m.104.com.tw`)。
+
+## 🟦 P3: 長期架構演進
+- [ ] **非同步架構 (@Async)**：引入 Spring Task Executor，將爬蟲與 AI 分析改為異步執行，避免阻塞 REST API。
+- [ ] **數據庫持久化**：從檔案系統遷移至 **H2** 或 **SQLite**，以便後續進行職缺數據分析。
+- [ ] **Web 儀表板**：開發簡單的 Thymeleaf 或 React 介面，提供歷史鑑定報告的列表與關鍵字搜尋。
+
+---
+
+## 📈 目前 Workflow 分析摘要
+
+1. **Input**: `JobController` 接收網址。
+2. **Clean**: `UrlValidator` 規整網址。
+3. **Crawl**: `CrawlerService` 透過 Playwright 抓取。 (🚨 *待優化：目前為共用 Context*)
+4. **Filter**: `ContentFilter` 攔截黑名單職缺。
+5. **AI**: `GeminiService` 進行專業職涯分析。
+6. **Save**: `FileUtil` 產出實體報告。
+7. **Output**: 回傳結構化字串。
+
+---
+**最後更新日期**：2026-04-23  
+**負責人**：職缺分析哨兵開發組
