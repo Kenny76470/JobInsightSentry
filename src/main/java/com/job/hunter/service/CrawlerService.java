@@ -3,100 +3,136 @@ package com.job.hunter.service;
 import com.job.hunter.model.JobDetail;
 import com.job.hunter.model.JobEntity;
 import com.job.hunter.repository.JobRepository;
+import com.job.hunter.util.UrlValidator;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.WaitUntilState;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+@Slf4j
 @Service
 public class CrawlerService {
     private final Browser browser;
 
     @Autowired
-    private JobRepository jobRepository; // 注入守門員
+    private JobRepository jobRepository;
 
     public CrawlerService(Browser browser) {
         this.browser = browser;
     }
 
+    /**
+     * 抓取搜尋列表 - 強力通用版
+     */
+    public List<String> scrapeJobList(String searchUrl) {
+        log.info(">>> 【開始】抓取搜尋列表：{}", searchUrl);
+
+        try (BrowserContext context = browser.newContext(new Browser.NewContextOptions()
+                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
+             Page page = context.newPage()) {
+
+            // 1. 前往頁面，等到網路靜止 (Vue 渲染需要時間)
+            page.navigate(searchUrl, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+
+            // 2. 💡 修正後的定位器：根據你提供的 HTML，職缺標題連結帶有 info-job__text
+            try {
+                page.waitForSelector(".info-job__text", new Page.WaitForSelectorOptions().setTimeout(15000));
+            } catch (Exception e) {
+                log.warn("⚠️ 還是抓不到職缺。DEBUG: 標題是 [{}]", page.title());
+                return Collections.emptyList();
+            }
+
+            // 3. 💡 深度採集：抓取所有帶有 jobsource 參數的連結，這是 104 職缺的特徵
+            // 或者直接鎖定 info-job__text
+            Locator links = page.locator("a.info-job__text");
+            List<String> urls = new ArrayList<>();
+
+            log.info("偵測到 {} 個潛在職缺連結", links.count());
+
+            for (int i = 0; i < links.count(); i++) {
+                String href = links.nth(i).getAttribute("href");
+                if (href != null && href.contains("job/")) {
+                    // 補全 URL
+                    String fullUrl = href.startsWith("//") ? "https:" + href : href;
+                    fullUrl = fullUrl.startsWith("/") ? "https://www.104.com.tw" + fullUrl : fullUrl;
+
+                    String cleanUrl = UrlValidator.clean(fullUrl);
+                    if (cleanUrl != null) {
+                        urls.add(cleanUrl);
+                    }
+                }
+            }
+
+            log.info("<<< 【完成】列表抓取，共發現 {} 個職缺 URL", urls.size());
+            return urls.stream().distinct().toList();
+
+        } catch (Exception e) {
+            log.error("【嚴重錯誤】列表抓取失敗：{}", e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 抓取單個職缺詳情
+     */
     public JobDetail scrape(String url) {
-        // 【核心邏輯：查重】在發起昂貴的爬蟲與 AI 請求前，先問資料庫
         if (jobRepository.existsById(url)) {
-            System.out.println(">>> 【跳過】資料庫已有紀錄，不再重複爬取：" + url);
-            // 實務上這裡可以回傳 null 或從資料庫抓舊資料，目前我們先用 skip 概念
+            log.info(">>> 【跳過】資料庫已有紀錄：{}", url);
             return null;
         }
 
-        try (Page page = browser.newPage()) {
-            System.out.println("【執行中】前往目標新職缺：" + url);
+        try (BrowserContext context = browser.newContext();
+             Page page = context.newPage()) {
 
-            page.navigate(url, new Page.NavigateOptions()
-                    .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
-                    .setTimeout(60000));
+            log.info("【執行中】前往目標詳情頁：{}", url);
+            page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             page.waitForSelector("h1", new Page.WaitForSelectorOptions().setTimeout(10000));
 
-            // --- 開始精確抓取 ---
-            String jobTitle = page.locator("h1").first().innerText().trim();
+            String jobTitle = safeInnerText(page, "h1", "未知職稱");
+            String companyName = safeInnerText(page, "[data-gtm-head='公司名稱'], .company-name", "未知公司");
+            String salary = safeInnerText(page, ".job-description-info__items p, .text-primary", "待遇面議");
 
-            String companyName = "未知公司";
-            try {
-                companyName = page.locator("[data-gtm-head='公司名稱']").first().innerText().trim();
-            } catch (Exception e) {
-                System.out.println("【警告】公司名抓取異常");
+            String content = safeInnerText(page, ".job-description__content", "無內文");
+            if ("無內文".equals(content)) {
+                content = safeInnerText(page, ".job-description", "內容解析失敗");
             }
 
-            String salary = "待遇面議";
-            try {
-                salary = page.locator("p.text-primary.font-weight-bold").first().innerText().trim();
-            } catch (Exception e) { }
+            String condition = safeInnerText(page, ".job-requirement-table", "請見內文");
 
-            String content = "";
-            try {
-                content = page.locator(".job-description__content").first().innerText().trim();
-            } catch (Exception e) {
-                content = page.locator("#app").innerText().trim();
-            }
+            log.info("【成功】抓取完成：{} @ {}", jobTitle, companyName);
 
-            String condition = "請見內文";
-            try {
-                condition = page.locator(".job-requirement-table").first().innerText().trim();
-            } catch (Exception e) { }
-
-            String benefit = "請見內文";
-
-            System.out.println("【成功】抓取完成：" + jobTitle + " @ " + companyName);
-
-            // --- 準備封裝回傳內容 ---
-            JobDetail detail = new JobDetail(
-                    companyName,
-                    jobTitle,
-                    salary,
-                    content,
-                    condition,
-                    benefit
-            );
-
-            // 【重要】暫時存入資料庫的基本資訊，確保下次不會重複爬
-            // 等你稍後實作 AI 分析後，我們會把 aiScore 也存進去
+            JobDetail detail = new JobDetail(companyName, jobTitle, salary, content, condition, "請見內文");
             saveJobToDatabase(url, companyName, jobTitle);
 
             return detail;
 
         } catch (Exception e) {
-            System.err.println("【錯誤】爬蟲執行失敗：" + e.getMessage());
-            throw new RuntimeException("爬蟲抓取失敗: " + e.getMessage());
+            log.error("【錯誤】詳情抓取失敗 [{}]: {}", url, e.getMessage());
+            return null;
         }
     }
 
-    // 輔助方法：將抓到的基本資訊存入 PostgreSQL
+    private String safeInnerText(Page page, String selector, String defaultValue) {
+        try {
+            Locator locator = page.locator(selector).first();
+            if (locator.isVisible()) {
+                return locator.innerText().trim();
+            }
+        } catch (Exception ignored) { }
+        return defaultValue;
+    }
+
     private void saveJobToDatabase(String url, String company, String title) {
         JobEntity job = new JobEntity();
         job.setJobUrl(url);
         job.setCompanyName(company);
         job.setJobTitle(title);
-        // aiAnalysis 和 aiScore 可以在之後 AI 分析完再 update
         jobRepository.save(job);
-        System.out.println(">>> 【存檔】職缺已紀錄至資料庫，下次將自動跳過。");
     }
 }

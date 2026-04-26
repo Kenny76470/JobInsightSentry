@@ -1,5 +1,6 @@
-package com.job.hunter.service;
+package com.job.hunter.service.Implementation;
 
+import com.job.hunter.service.AiService;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 

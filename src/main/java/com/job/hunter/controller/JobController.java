@@ -1,7 +1,7 @@
 package com.job.hunter.controller;
 
 import com.job.hunter.model.JobDetail;
-import com.job.hunter.service.AiService; // 👈 1. 這裡要改 import 介面
+import com.job.hunter.service.AiService;
 import com.job.hunter.service.CrawlerService;
 import com.job.hunter.util.ContentFilter;
 import com.job.hunter.util.FileUtil;
@@ -18,9 +18,8 @@ import java.time.format.DateTimeFormatter;
 public class JobController {
 
     private final CrawlerService crawlerService;
-    private final AiService aiService; // 👈 2. 型態從 GeminiService 改為 AiService 介面
+    private final AiService aiService;
 
-    // 👈 3. 建構子注入的參數也要改成 AiService
     public JobController(CrawlerService crawlerService, AiService aiService) {
         this.crawlerService = crawlerService;
         this.aiService = aiService;
@@ -42,24 +41,34 @@ public class JobController {
                 return mav;
             }
 
+            // 1. 執行爬蟲（內部會先去資料庫查重）
             JobDetail detail = crawlerService.scrape(cleanUrl);
 
+            // 🛡️ 2. 【新增防禦性判斷】處理重複職缺
+            if (detail == null) {
+                mav.addObject("result", "ℹ️ 此職缺已存在於資料庫中，系統自動跳過重複分析。");
+                return mav;
+            }
+
+            // 3. 過濾垃圾資訊（現在保證 detail 不是 null 了）
             if (ContentFilter.isGarbage(detail)) {
                 mav.addObject("result", "🚫 偵測到關鍵字或內容異常，系統已自動攔截該職缺。");
                 return mav;
             }
 
+            // 4. AI 分析
             String prompt = String.format("公司：%s, 職稱：%s, 內容：%s",
                     detail.companyName(), detail.jobTitle(), detail.content());
 
-            // 👈 4. 這裡會自動根據 Profile 呼叫到對應的 analyze 實作
             String aiResult = aiService.analyze(prompt);
 
+            // 5. 渲染頁面數據
             mav.addObject("companyName", detail.companyName());
             mav.addObject("jobTitle", detail.jobTitle());
             mav.addObject("result", aiResult);
             mav.addObject("scanTime", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
+            // 6. 存檔（CSV/TXT）
             FileUtil.saveJob(detail, cleanUrl);
             FileUtil.saveAnalysis(detail, aiResult);
 
