@@ -4,13 +4,16 @@ import com.microsoft.playwright.*;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
+import org.springframework.beans.factory.annotation.Value;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class BrowserConfig {
 
     // --- Playwright 相關組件 ---
+    // 注入設定檔的值
+    @Value("${playwright.headless:true}")
+    private boolean isHeadless;
 
     @Bean
     public Playwright playwright() {
@@ -22,7 +25,7 @@ public class BrowserConfig {
         // 設為 false 方便開發時觀察爬蟲行為
         // 將 setHeadless(true) 改成 false
         return playwright.chromium().launch(new BrowserType.LaunchOptions()
-                .setHeadless(false)  // 💡 讓瀏覽器視窗彈出來
+                .setHeadless(isHeadless)  // 動態切換
                 .setSlowMo(100));    // 💡 稍微放慢動作讓我們看得清
     }
 

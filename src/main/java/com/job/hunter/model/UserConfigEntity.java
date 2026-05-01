@@ -17,16 +17,25 @@ public class UserConfigEntity {
 
     private int minSalary;
 
-    private String lineNotifyToken;
+    /**
+     * 💡 重要修改：
+     * 將 lineNotifyToken 改為 lineUserId。
+     * 這串 Uxxxxxxxxxxxx... 是每個使用者的「個人地址」。
+     */
+    private String lineUserId;
 
     // --- Getter / Setter ---
     public Long getId() { return id; }
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
     public String getSearchKeyword() { return searchKeyword; }
     public void setSearchKeyword(String searchKeyword) { this.searchKeyword = searchKeyword; }
+
     public int getMinSalary() { return minSalary; }
     public void setMinSalary(int minSalary) { this.minSalary = minSalary; }
-    public String getLineNotifyToken() { return lineNotifyToken; }
-    public void setLineNotifyToken(String lineNotifyToken) { this.lineNotifyToken = lineNotifyToken; }
+
+    public String getLineUserId() { return lineUserId; }
+    public void setLineUserId(String lineUserId) { this.lineUserId = lineUserId; }
 }

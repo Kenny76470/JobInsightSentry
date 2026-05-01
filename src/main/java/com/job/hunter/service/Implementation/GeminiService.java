@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-@Primary
+//@Primary
 @Service
 public class GeminiService implements AiService {
 
@@ -25,7 +25,7 @@ public class GeminiService implements AiService {
 
     public GeminiService() {
         Dotenv dotenv = Dotenv.load();
-        // 💡 修正點：確保 API Key 讀取時不會帶有前後空白
+        // 確保 API Key 讀取時不會帶有前後空白
         String rawKey = dotenv.get("GEMINI_API_KEY");
         this.apiKey = (rawKey != null) ? rawKey.trim() : "";
 
@@ -44,8 +44,8 @@ public class GeminiService implements AiService {
      * 底層調用 Gemini API
      */
     private String callGemini(String prompt) throws IOException {
-        // 💡 修正點：移除 URL 字串中可能的 Markdown 連結標籤與空白
-        String baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+        // 移除 URL 字串中可能的 Markdown 連結標籤與空白
+        String baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
         HttpUrl parsedUrl = HttpUrl.parse(baseUrl.trim());
         if (parsedUrl == null) {
@@ -57,7 +57,7 @@ public class GeminiService implements AiService {
                 .addQueryParameter("key", apiKey)
                 .build();
 
-        // 💡 加入 generationConfig，強制 AI 輸出純 JSON 結構
+        // 加入 generationConfig，強制 AI 輸出純 JSON 結構
         Map<String, Object> requestMap = Map.of(
                 "contents", new Object[]{
                         Map.of("parts", new Object[]{
@@ -85,7 +85,10 @@ public class GeminiService implements AiService {
             if (!response.isSuccessful()) {
                 String errorBody = response.body() != null ? response.body().string() : "Unknown Error";
                 log.error("❌ Gemini API 失敗: {} - {}", response.code(), errorBody);
-                return "{\"aiScore\": 0, \"aiAnalysis\": \"API 回傳錯誤: " + response.code() + "\"}";
+
+                // 💡 關鍵修正：不再回傳假 JSON，直接拋出 Exception！
+                // 這樣外層的 JobAnalysisService 才能 catch 到 429 錯誤字眼並正確觸發 60 秒冷卻
+                throw new IOException("HTTP " + response.code() + " 錯誤: " + errorBody);
             }
 
             String responseBody = response.body().string();
@@ -93,7 +96,7 @@ public class GeminiService implements AiService {
         }
     }
 
-    private String extractTextFromResponse(String responseBody) {
+    private String extractTextFromResponse(String responseBody) throws IOException {
         try {
             JsonObject json = gson.fromJson(responseBody, JsonObject.class);
             return json.getAsJsonArray("candidates")
@@ -104,7 +107,8 @@ public class GeminiService implements AiService {
                     .get("text").getAsString();
         } catch (Exception e) {
             log.error("⚠️ AI 解析 JSON 失敗: {}", e.getMessage());
-            return "{\"aiScore\": 0, \"aiAnalysis\": \"JSON 結構解析失敗\"}";
+            // 如果連 JSON 結構都爛了，一樣拋出錯誤讓系統知道失敗了，而不是塞 0 分
+            throw new IOException("JSON 結構解析失敗");
         }
     }
 }

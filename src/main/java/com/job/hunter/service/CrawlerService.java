@@ -22,6 +22,9 @@ public class CrawlerService {
     @Autowired
     private JobRepository jobRepository;
 
+    // 定義統一的 User-Agent，強制以 PC 網頁版面渲染，避免 104 隨機給手機版
+    private final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
     public CrawlerService(Browser browser) {
         this.browser = browser;
     }
@@ -32,14 +35,11 @@ public class CrawlerService {
     public List<String> scrapeJobList(String searchUrl) {
         log.info(">>> 【開始】抓取搜尋列表：{}", searchUrl);
 
-        try (BrowserContext context = browser.newContext(new Browser.NewContextOptions()
-                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"));
+        try (BrowserContext context = browser.newContext(new Browser.NewContextOptions().setUserAgent(USER_AGENT));
              Page page = context.newPage()) {
 
-            // 1. 前往頁面，等到網路靜止 (Vue 渲染需要時間)
             page.navigate(searchUrl, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
 
-            // 2. 💡 修正後的定位器：根據你提供的 HTML，職缺標題連結帶有 info-job__text
             try {
                 page.waitForSelector(".info-job__text", new Page.WaitForSelectorOptions().setTimeout(15000));
             } catch (Exception e) {
@@ -47,8 +47,6 @@ public class CrawlerService {
                 return Collections.emptyList();
             }
 
-            // 3. 💡 深度採集：抓取所有帶有 jobsource 參數的連結，這是 104 職缺的特徵
-            // 或者直接鎖定 info-job__text
             Locator links = page.locator("a.info-job__text");
             List<String> urls = new ArrayList<>();
 
@@ -57,7 +55,6 @@ public class CrawlerService {
             for (int i = 0; i < links.count(); i++) {
                 String href = links.nth(i).getAttribute("href");
                 if (href != null && href.contains("job/")) {
-                    // 補全 URL
                     String fullUrl = href.startsWith("//") ? "https:" + href : href;
                     fullUrl = fullUrl.startsWith("/") ? "https://www.104.com.tw" + fullUrl : fullUrl;
 
@@ -86,29 +83,35 @@ public class CrawlerService {
             return null;
         }
 
-        try (BrowserContext context = browser.newContext();
+        // 💡 修改點 1：統一 User-Agent，讓詳情頁也保持 PC 版面，防止排版亂跳
+        try (BrowserContext context = browser.newContext(new Browser.NewContextOptions().setUserAgent(USER_AGENT));
              Page page = context.newPage()) {
 
             log.info("【執行中】前往目標詳情頁：{}", url);
             page.navigate(url, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
 
-            page.waitForSelector("h1", new Page.WaitForSelectorOptions().setTimeout(10000));
-
-            String jobTitle = safeInnerText(page, "h1", "未知職稱");
-            String companyName = safeInnerText(page, "[data-gtm-head='公司名稱'], .company-name", "未知公司");
-            String salary = safeInnerText(page, ".job-description-info__items p, .text-primary", "待遇面議");
-
-            String content = safeInnerText(page, ".job-description__content", "無內文");
-            if ("無內文".equals(content)) {
-                content = safeInnerText(page, ".job-description", "內容解析失敗");
+            // 💡 修改點 2：不要只等 h1，必須等到「工作內容」的區塊出現才開始抓
+            try {
+                page.waitForSelector("p.job-description__content, div.job-description-content", new Page.WaitForSelectorOptions().setTimeout(10000));
+            } catch (Exception e) {
+                log.warn("等待內文元素出現超時，可能是特殊版面或網頁載入緩慢");
             }
 
+            // 💡 修改點 3：加入 F12 分析出的多重備用選擇器 (用逗號隔開)
+            String jobTitle = safeInnerText(page, "h1", "未知職稱");
+            String companyName = safeInnerText(page, ".company__name, a.cmp-link, [data-gtm-head='公司名稱'], .company-name", "未知公司");
+            String salary = safeInnerText(page, ".job-header__salary, .job-description-info__items p, .text-primary", "待遇面議");
+
+            // 涵蓋標準版、手機版、企業客製版的內文選擇器
+            String content = safeInnerText(page, "p.job-description__content, div.job-description-content, p.job-description-table__data", "無內文");
             String condition = safeInnerText(page, ".job-requirement-table", "請見內文");
 
-            log.info("【成功】抓取完成：{} @ {}", jobTitle, companyName);
+            log.info("【成功】抓取完成：{} @ {} (內文字數: {})", jobTitle, companyName, content.length());
 
             JobDetail detail = new JobDetail(companyName, jobTitle, salary, content, condition, "請見內文");
-            saveJobToDatabase(url, companyName, jobTitle);
+
+            // 💡 修改點 4：把 content 傳給資料庫儲存方法
+            saveJobToDatabase(url, companyName, jobTitle, content);
 
             return detail;
 
@@ -120,6 +123,7 @@ public class CrawlerService {
 
     private String safeInnerText(Page page, String selector, String defaultValue) {
         try {
+            // first() 確保即使有多個符合的標籤，我們也只抓第一個
             Locator locator = page.locator(selector).first();
             if (locator.isVisible()) {
                 return locator.innerText().trim();
@@ -128,11 +132,13 @@ public class CrawlerService {
         return defaultValue;
     }
 
-    private void saveJobToDatabase(String url, String company, String title) {
+    // 💡 修改點 5：新增 content 參數並存入 job
+    private void saveJobToDatabase(String url, String company, String title, String content) {
         JobEntity job = new JobEntity();
         job.setJobUrl(url);
         job.setCompanyName(company);
         job.setJobTitle(title);
+        job.setContent(content); // 👈 真正解決 null 的救星在這裡！
         jobRepository.save(job);
     }
 }

@@ -2,68 +2,43 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>JobInsightSentry | 職缺分析哨兵</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .loading-spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid #3b82f6;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
+    <title>JobInsightSentry - 哨兵配置</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
+<body class="container mt-5">
 
-<div class="container mx-auto px-4 py-12 max-w-4xl">
-    <div class="text-center mb-12">
-        <h1 class="text-4xl font-extrabold text-blue-400 mb-2">🔍 JobInsightSentry</h1>
-        <p class="text-slate-400">輸入 104 職缺網址，由 Gemini 3.1 Flash 為你深度鑑定</p>
+<div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+        <h2 class="mb-0">🕵️ 配置我的求職哨兵</h2>
     </div>
-
-    <div class="bg-slate-800 p-6 rounded-xl shadow-2xl mb-8">
-        <form action="/scan" method="get" class="flex gap-4" id="scanForm">
-            <input type="text" name="url" placeholder="https://www.104.com.tw/job/..."
-                   class="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white">
-            <button type="submit" onclick="showLoading()"
-                    class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-lg transition duration-200">
-                立即掃描
-            </button>
+    <div class="card-body">
+        <form action="/api/config/save" method="POST">
+            <div class="mb-3">
+                <label class="form-label">使用者名稱</label>
+                <input type="text" name="username" class="form-control" placeholder="例如: MyJobHunter" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">搜尋關鍵字</label>
+                <input type="text" name="searchKeyword" class="form-control" placeholder="例如: Java 工程師" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">最低月薪要求 (NTD)</label>
+                <input type="number" name="minSalary" class="form-control" value="50000" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">你的 LINE User ID (精準推播地址)</label>
+                <input type="text" name="lineUserId" class="form-control" placeholder="Uxxxxxxxxxxxxxxx..." required>
+                <div class="form-text text-muted">請去 LINE Developer 控制台的 Messaging API 頁籤最下方查看。</div>
+            </div>
+            <button type="submit" class="btn btn-success w-100">儲存配置並啟動監控</button>
         </form>
-    </div>
-
-    <div id="loadingArea" class="hidden flex-col items-center py-12">
-        <div class="loading-spinner mb-4"></div>
-        <p class="text-blue-400 font-medium italic">正在爬取網頁並串接 AI 分析中，請稍候...</p>
-    </div>
-
-    <div th:if="${result}" class="space-y-6">
-        <div class="bg-slate-800 border-l-4 border-blue-500 p-6 rounded-r-xl shadow-lg">
-            <h2 class="text-xl font-bold text-white mb-2" th:text="${companyName} + ' - ' + ${jobTitle}">公司名稱 - 職稱</h2>
-            <p class="text-sm text-slate-400">掃描時間：<span th:text="${scanTime}"></span></p>
-        </div>
-
-        <div class="bg-slate-800 p-8 rounded-xl shadow-lg leading-relaxed whitespace-pre-wrap text-slate-200 border border-slate-700"
-             th:text="${result}">
-        </div>
-
-        <div class="text-center">
-            <a href="/" class="text-slate-500 hover:text-slate-300 underline text-sm">清除結果重新掃描</a>
-        </div>
     </div>
 </div>
 
-<script>
-    function showLoading() {
-        const urlInput = document.querySelector('input[name="url"]').value;
-        if (urlInput) {
-            document.getElementById('loadingArea').classList.remove('hidden');
-            document.getElementById('scanForm').classList.add('opacity-50', 'pointer-events-none');
-        }
-    }
-</script>
+<div class="mt-4 alert alert-info">
+    <h5>💡 提示：</h5>
+    <p>儲存成功後，系統會在 1 分鐘內自動啟動爬蟲。你可以在控制台 (IntelliJ Console) 查看進度。</p>
+</div>
+
 </body>
 </html>

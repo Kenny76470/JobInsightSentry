@@ -17,9 +17,17 @@ public class JobEntity {
     @Column(columnDefinition = "TEXT") // 職缺內容通常很長，所以用 TEXT 型態
     private String aiAnalysis;
 
-    private int aiScore;
+    private Integer aiScore;
 
     private LocalDateTime createdAt;
+
+    // 在 JobEntity 類別中加入以下內容：
+
+    @Column(columnDefinition = "TEXT")
+    private String content; // 儲存爬蟲抓回來的原始內文
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
 
     // 啟動時自動設定建立時間
     @PrePersist
@@ -41,8 +49,8 @@ public class JobEntity {
     public String getAiAnalysis() { return aiAnalysis; }
     public void setAiAnalysis(String aiAnalysis) { this.aiAnalysis = aiAnalysis; }
 
-    public int getAiScore() { return aiScore; }
-    public void setAiScore(int aiScore) { this.aiScore = aiScore; }
+    public Integer getAiScore() { return aiScore; }
+    public void setAiScore(Integer aiScore) { this.aiScore = aiScore; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

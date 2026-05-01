@@ -1,0 +1,5 @@
+line:
+  channel:
+    token: ${LINE_CHANNEL_ACCESS_TOKEN}
+  user:
+    id: ${LINE_USER_ID}
