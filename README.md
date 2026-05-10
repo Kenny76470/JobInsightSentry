@@ -1,5 +1,5 @@
 
-```markdown
+
 # JobInsightSentry - AI 職缺追蹤與自動化分析系統
 
 JobInsightSentry 是一個基於 **Spring Boot** 開發的自動化求職助手。它結合了 **Playwright 網頁爬蟲**、**LLM (Gemini/Ollama) AI 分析** 與 **LINE Messaging API**，能自動從 104 等求職平台擷取職缺、利用 AI 進行適配度分析，並將結果即時推送至使用者手機。
