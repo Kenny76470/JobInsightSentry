@@ -41,3 +41,23 @@ build/
 # 自定義敏感資訊
 .env
 JobExports/
+
+# --- Spring Boot 專案額外建議 ---
+
+# 1. 忽略應用程式產生的 Log 檔案
+# 你的爬蟲或 AI 分析在運行時可能會產出大量 Log，甚至可能意外印出爬取到的敏感資料
+*.log
+logs/
+
+# 2. 忽略帶有密碼的 Spring 設定檔 (非常重要！)
+# 雖然你有 .env，但有時我們為了測試會建立 application-dev.properties 或 application-secret.properties 裡面寫死密碼
+application-dev.properties
+application-secret.properties
+application-prod.properties
+# (注意：請保留主要的 application.properties，但確保裡面只有變數，像是 spring.datasource.password=${DB_PASSWORD})
+
+# 3. 忽略 Playwright 可能產生的測試或除錯報告
+test-results/
+playwright-report/
+blob-report/
+
