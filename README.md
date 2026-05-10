@@ -1,4 +1,3 @@
-幫您將上述內容清理了多餘的標籤，並重新排版成整齊、標準的 Markdown 格式。您可以直接複製以下內容，貼上到您的 `README.md` 檔案中：
 
 ```markdown
 # JobInsightSentry - AI 職缺追蹤與自動化分析系統
