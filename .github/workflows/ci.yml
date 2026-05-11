@@ -1,0 +1,29 @@
+name: JobInsightSentry CI
+
+on:
+  push:
+    branches: [ "main", "feature/setup-ci" ] # 這裡多加了你的分支，這樣 push 才會觸發
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Run Tests
+        # 這裡會幫你檢查 Java 能不能編譯，以及 Unit Test 有沒有過
+        run: mvn clean test
+
+      - name: Docker Build Check
+        # 測試 Docker 能不能成功包裝
+        run: docker build -t job-insight-sentry:test .
