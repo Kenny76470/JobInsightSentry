@@ -1,4 +1,7 @@
 services:
+  # ==========================================
+  # 1. PostgreSQL 資料庫服務
+  # ==========================================
   db:
     image: postgres:15-alpine
     container_name: job_sentry_db
@@ -10,6 +13,37 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - SentryNetwork
 
+  # ==========================================
+  # 2. 你的 Java / Spring Boot 應用程式
+  # ==========================================
+  app:
+    build: .
+    container_name: job_insight_sentry_app
+    ports:
+      - "8080:8080"
+    # 💡 關鍵優化：直接將筆電本地的 .env 檔案注入到容器中
+    env_file:
+      - .env
+    environment:
+      # 💡 核心修正：將資料庫連線路徑指向容器網路中的 "db" 服務，而非 localhost
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/jobinsight
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=password123
+    # 💡 確保 db 容器啟動完成後，App 才會開始執行，避免噴連線失敗錯誤
+    depends_on:
+      - db
+    networks:
+      - SentryNetwork
+
+# ==========================================
+# 定義共用的基礎設施（硬碟磁碟區與虛擬網路）
+# ==========================================
 volumes:
   postgres_data:
+
+networks:
+  SentryNetwork:
+    driver: bridge
