@@ -25,8 +25,8 @@ public class OllamaService implements AiService {
     private final String OLLAMA_API_URL = "http://localhost:11434/api/chat";
 
     // ⚠️ 請確保這裡填寫的名字，跟你終端機裡 ollama run 的名字「一模一樣」
-    // 如果你抓的是 2.5，請改成 "qwen2.5"
-    private final String MODEL_NAME = "qwen3.5:9b";
+    // 如果你抓的是 2，請改成 "qwen2:7b"
+    private final String MODEL_NAME = "qwen2:7b";
 
     public OllamaService() {
         this.client = new OkHttpClient.Builder()
